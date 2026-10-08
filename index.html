@@ -3,487 +3,180 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Gestão SolarInvest</title>
-    
+    <title>Painel do Proprietário</title>
+
+    <!-- ========================================================= -->
+    <!-- CONFIGURAÇÕES PRINCIPAIS (SUBSTITUA AQUI OS SEUS DADOS)   -->
+    <!-- ========================================================= -->
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyl9_5ASpjuVkNVsOelF2mdhWvFq08Ruqqhrf5iF_EMizbgHHWPpWb__BguMFZQuwB97A/exec";
+        const ONESIGNAL_DONO_APP_ID = "COLOQUE_AQUI_O_APP_ID_DO_DONO";
+        const LOGO_PATH = "./logo_nova.jpg";
+        const DONO_LOGIN = "dono"; // ID de notificação do proprietário
+    </script>
+    <!-- ========================================================= -->
+
+    <!-- Configurações PWA e Safe Area -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0B1437">
+    <meta name="theme-color" content="#0d1117">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SolarInvest">
-    <link rel="apple-touch-icon" href="./logo_tipo.jpg">
+    <meta name="apple-mobile-web-app-title" content="Painel Dono">
+    <link rel="apple-touch-icon" href="./logo_nova.jpg">
 
-    <!-- CONFIGURAÇÃO ONESIGNAL (Substitua pelo seu App ID) -->
+    <!-- Tailwind CSS & FontAwesome -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- OneSignal Web Push SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
-          appId: "SEU_ONESIGNAL_APP_ID_AQUI",
-          allowLocalhostAsSecureOrigin: true,
+          appId: ONESIGNAL_DONO_APP_ID,
+          serviceWorkerPath: "sw.js",
+          serviceWorkerParam: { scope: "/" },
         });
+        await OneSignal.login(DONO_LOGIN);
+        await OneSignal.Notifications.requestPermission();
       });
-    </script>
-
-    <!-- Tailwind CSS, FontAwesome e Leaflet Maps -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: { bg: '#0B1437', card: '#111C44', input: '#1A2753', primary: '#7551FF', accent: '#05CD99', danger: '#EE5D50' }
-                    }
-                }
-            }
-        }
     </script>
 
     <style>
         :root {
-            --sat: env(safe-area-inset-top);
-            --sab: env(safe-area-inset-bottom);
+            --sat: env(safe-area-inset-top, 0px);
+            --sab: env(safe-area-inset-bottom, 0px);
         }
-        body {
-            background-color: #0B1437;
-            color: #FFFFFF;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            padding-top: var(--sat);
-            padding-bottom: var(--sab);
+
+        html, body {
+            background-color: #0d1117;
+            color: #f0f6fc;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
-        .header-safe {
-            padding-top: calc(var(--sat) + 8px);
+
+        .safe-padding-top { padding-top: calc(var(--sat) + 1rem); }
+        .safe-padding-bottom { padding-bottom: calc(var(--sab) + 1rem); }
+
+        .glass-card {
+            background: rgba(22, 27, 34, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .leaflet-popup-content-wrapper {
-            background: #111C44 !important;
-            color: #FFF !important;
-            border-radius: 16px;
-            border: 1px solid #2B3674;
-        }
-        .leaflet-popup-tip {
-            background: #111C44 !important;
-        }
-        .custom-house-icon {
-            background: #7551FF;
-            border: 2px solid #FFF;
-            border-radius: 50%;
-            color: #FFF;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 15px rgba(117, 81, 255, 0.5);
-        }
-        ::-webkit-scrollbar { display: none; }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col overflow-hidden">
+<body class="min-h-screen p-4 flex flex-col justify-center items-center safe-padding-top safe-padding-bottom">
 
-    <!-- TOAST NOTIFICATION -->
-    <div id="toast" class="fixed top-12 left-1/2 transform -translate-x-1/2 z-50 hidden bg-brand-primary text-white px-5 py-3 rounded-full shadow-2xl font-semibold text-xs flex items-center gap-2 border border-white/20 transition-all">
-        <i class="fa-solid fa-circle-check text-brand-accent"></i> <span id="toast-msg">Operação realizada!</span>
-    </div>
-
-    <!-- TELA DE LOGIN COM VALIDAÇÃO NA PLANILHA -->
-    <div id="screen-login" class="fixed inset-0 z-40 bg-brand-bg flex flex-col justify-center items-center px-6">
-        <div class="w-full max-w-sm bg-brand-card p-8 rounded-3xl border border-[#2B3674] shadow-2xl text-center">
-            <img src="./logo_tipo.jpg" alt="Logo" class="w-20 h-20 mx-auto rounded-2xl mb-4 border-2 border-brand-primary/40 object-cover shadow-lg">
-            <h2 class="text-xl font-bold mb-1">Acesso Restrito</h2>
-            <p class="text-xs text-gray-400 mb-6">Informe o nome cadastrado na planilha</p>
-            
-            <form id="form-login" onsubmit="efetuarLogin(event)" class="space-y-4">
-                <input type="text" id="login-user" placeholder="Digite seu Nome" required class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-primary">
-                <button type="submit" id="btn-login-submit" class="w-full bg-brand-primary hover:bg-brand-primary/80 py-3 rounded-xl font-bold text-sm shadow-lg shadow-brand-primary/30 transition-all flex items-center justify-center gap-2">
-                    <span>Entrar no Sistema</span>
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- HEADER PRINCIPAL -->
-    <header class="header-safe bg-brand-card border-b border-[#2B3674] px-5 pb-3 flex justify-between items-center flex-shrink-0 z-10">
-        <div class="flex items-center gap-3">
-            <img src="./logo_tipo.jpg" alt="Logo" class="w-9 h-9 rounded-xl border border-brand-primary/40 object-cover">
-            <div>
-                <h1 class="font-bold text-sm leading-none">Painel Imobiliário</h1>
-                <span class="text-[10px] text-brand-accent font-semibold" id="logged-user-display">Sessão Ativa</span>
-            </div>
-        </div>
-        <button onclick="efetuarLogout()" class="bg-brand-input border border-[#2B3674] hover:bg-brand-danger/20 hover:border-brand-danger hover:text-brand-danger px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5">
-            <i class="fa-solid fa-right-from-bracket"></i> Sair
-        </button>
-    </header>
-
-    <!-- CONTEÚDO PRINCIPAL (ABAS) -->
-    <main class="flex-1 overflow-y-auto p-4 relative">
+    <div class="w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl border border-white/10 relative">
         
-        <!-- ABA 1: MANUTENÇÃO (TELA INICIAL PADRÃO) -->
-        <section id="tab-manutencao" class="space-y-4">
-            <div class="bg-gradient-to-r from-brand-primary to-indigo-900 p-5 rounded-2xl shadow-xl">
-                <h2 class="font-extrabold text-base mb-1">Manutenção de Valores</h2>
-                <p class="text-xs text-white/80">Atualize taxas de aluguel e energia dos clientes em tempo real.</p>
+        <!-- CABEÇALHO COM A LOGOTIPO DA EMPRESA -->
+        <div class="flex items-center gap-3.5 mb-6 border-b border-white/10 pb-4">
+            <div class="p-0.5 rounded-xl bg-gradient-to-b from-emerald-500/30 to-transparent shadow-[0_0_15px_rgba(63,185,80,0.15)] shrink-0">
+                <img id="app-logo" src="./logo_nova.jpg" alt="Logo" class="w-12 h-12 rounded-xl object-cover border border-white/10">
+            </div>
+            <div>
+                <h1 class="text-base font-extrabold text-white leading-tight">Painel do Proprietário</h1>
+                <p class="text-xs text-gray-400 font-medium">Lançamento de Contas & Faturas</p>
+            </div>
+            <div class="ml-auto">
+                <button type="button" onclick="ativarNotificacoesDono()" class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center active:scale-95 transition-all">
+                    <i class="fa-solid fa-bell text-xs"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- FORMULÁRIO DE ATUALIZAÇÃO DA PLANILHA -->
+        <form id="form-gestao" onsubmit="salvarDados(event)" class="space-y-4">
+            <div>
+                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Login do Inquilino</label>
+                <input type="text" id="login-inquilino" placeholder="Ex: paulo" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
             </div>
 
-            <div id="lista-clientes-manutencao" class="space-y-3">
-                <!-- Injetado Dinamicamente -->
+            <div>
+                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Identificação do Imóvel</label>
+                <input type="text" id="casa-nome" placeholder="Ex: Casa 01" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
             </div>
-        </section>
 
-        <!-- ABA 2: NOVO CADASTRO -->
-        <section id="tab-cadastro" class="hidden space-y-4">
-            <div class="bg-brand-card p-5 rounded-2xl border border-[#2B3674] shadow-xl">
-                <h2 class="font-bold text-base mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-house-chimney-medical text-brand-primary"></i> Cadastrar Imóvel / Cliente
-                </h2>
-
-                <form id="form-cadastro" onsubmit="enviarGoogleForms(event)" class="space-y-3">
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-400 block mb-1">NOME COMPLETO / IDENTIFICAÇÃO</label>
-                        <input type="text" id="cad-nome" required placeholder="Ex: João da Silva - Casa 01" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
-                    </div>
-
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-400 block mb-1">ENDEREÇO COMPLETO</label>
-                        <input type="text" id="cad-endereco" required placeholder="Rua, Número, Bairro" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 block mb-1">ALUGUEL (R$)</label>
-                            <input type="number" step="0.01" id="cad-aluguel" required placeholder="0.00" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
-                        </div>
-                        <div>
-                            <label class="text-[11px] font-bold text-gray-400 block mb-1">ENERGIA (R$)</label>
-                            <input type="number" step="0.01" id="cad-energia" required placeholder="0.00" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-400 block mb-1">COORDENADAS GPS (LAT, LNG)</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="cad-gps" placeholder="-15.3312, -49.1189" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
-                            <button type="button" onclick="obterGPSAtual()" class="bg-brand-input border border-[#2B3674] px-3 rounded-xl text-brand-primary text-xs font-bold hover:bg-brand-primary hover:text-white transition-all"><i class="fa-solid fa-location-crosshairs"></i></button>
-                        </div>
-                    </div>
-
-                    <button type="submit" id="btn-cad-submit" class="w-full bg-brand-accent hover:bg-emerald-600 text-brand-bg font-bold py-3 rounded-xl text-xs shadow-lg mt-2 transition-all flex justify-center items-center gap-2">
-                        <i class="fa-solid fa-paper-plane"></i> Cadastrar e Enviar ao Forms
-                    </button>
-                </form>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Aluguel (R$)</label>
+                    <input type="number" step="0.01" id="val-aluguel" placeholder="0.00" class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Energia (R$)</label>
+                    <input type="number" step="0.01" id="val-energia" placeholder="0.00" class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
             </div>
-        </section>
 
-        <!-- ABA 3: MAPA MUNDI / NAVEGAÇÃO GPS -->
-        <section id="tab-mapa" class="hidden h-full flex flex-col">
-            <div class="mb-2 flex justify-between items-center">
-                <span class="text-xs font-bold text-gray-300"><i class="fa-solid fa-earth-americas text-brand-primary"></i> Localização de Ativos</span>
-                <span class="text-[10px] bg-brand-input px-2 py-1 rounded-lg border border-[#2B3674] text-gray-400">Clique no ícone para rotas</span>
+            <div>
+                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Dia de Vencimento Mensal</label>
+                <input type="number" id="dia-vencimento" placeholder="10" value="10" min="1" max="31" class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
             </div>
-            <div id="map" class="w-full flex-1 rounded-2xl border border-[#2B3674] overflow-hidden shadow-2xl"></div>
-        </section>
-    </main>
 
-    <!-- NAVEGAÇÃO INFERIOR FLUIDA (BOTÕES COMPACTOS) -->
-    <nav class="bg-brand-card border-t border-[#2B3674] px-4 py-2 flex justify-around items-center flex-shrink-0 z-20">
-        <button onclick="trocarAba('manutencao')" id="nav-manutencao" class="flex flex-col items-center gap-1 text-brand-primary">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm bg-brand-primary/10"><i class="fa-solid fa-sliders"></i></div>
-            <span class="text-[10px] font-bold">Ajustes</span>
-        </button>
+            <button type="submit" id="btn-salvar" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-3.5 rounded-xl active:scale-95 transition-all text-sm flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 mt-2">
+                <i class="fa-solid fa-paper-plane"></i> Atualizar e Enviar
+            </button>
+        </form>
 
-        <button onclick="trocarAba('mapa')" id="nav-mapa" class="flex flex-col items-center gap-1 text-gray-400">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm"><i class="fa-solid fa-map-location-dot"></i></div>
-            <span class="text-[10px] font-bold">Mapa</span>
-        </button>
-
-        <button onclick="trocarAba('cadastro')" id="nav-cadastro" class="flex flex-col items-center gap-1 text-gray-400">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm"><i class="fa-solid fa-plus-circle"></i></div>
-            <span class="text-[10px] font-bold">Novo</span>
-        </button>
-    </nav>
-
-    <!-- IFRAME OCULTO PARA ENVIO DO FORMS SEM REFRESH -->
-    <iframe name="hidden_iframe_forms" id="hidden_iframe_forms" class="hidden"></iframe>
+        <p id="msg-status" class="text-center text-xs font-semibold mt-4 hidden"></p>
+    </div>
 
     <script>
-        const LOGIN_SHEET_URL = "https://docs.google.com/spreadsheets/d/1b-hPE6fom1F94MDmek3LeWL7g4O4rTlb_ruZjbfer7s/gviz/tq?tqx=out:json&sheet=login";
-        const FORMS_ACTION_URL = "https://docs.google.com/forms/d/e/1FAIpQLSc8W4t2tjWCfYsVzr7tp9C5EA17RAKWu1Abu8Q9q4n17Hoyfw/formResponse";
-        
-        let casasDatabase = [];
-        let leafletMap = null;
-        let markersGroup = null;
+        // Atualiza dinamicamente o SRC da imagem se alterado no topo
+        document.getElementById('app-logo').src = LOGO_PATH;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            verificarAutenticacao();
-            carregarDadosLocais();
-            initServiceWorker();
-        });
-
-        // AUTENTICAÇÃO PERSISTENTE VALIDADANDO NA CELULA A1 DA ABA LOGIN
-        function verificarAutenticacao() {
-            const userSalvo = localStorage.getItem('solar_auth_user');
-            if (userSalvo) {
-                document.getElementById('screen-login').classList.add('hidden');
-                document.getElementById('logged-user-display').innerText = userSalvo;
-            } else {
-                document.getElementById('screen-login').classList.remove('hidden');
-            }
-        }
-
-        async function efetuarLogin(e) {
+        async function salvarDados(e) {
             e.preventDefault();
-            const userInput = document.getElementById('login-user').value.trim();
-            const btnSubmit = document.getElementById('btn-login-submit');
-            
-            btnSubmit.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Validando...`;
-            btnSubmit.disabled = true;
+            const btn = document.getElementById('btn-salvar');
+            const msg = document.getElementById('msg-status');
 
-            try {
-                // Busca os dados da aba "login" na planilha
-                const res = await fetch(LOGIN_SHEET_URL);
-                const text = await res.text();
-                
-                // Trata a resposta JSON da API do Google Sheets (gviz)
-                const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);/);
-                if (!jsonMatch) throw new Error("Erro ao ler dados da planilha.");
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> Enviando...';
+            msg.classList.add('hidden');
 
-                const jsonData = JSON.parse(jsonMatch[1]);
-                const rows = jsonData.table.rows;
-
-                // Lê o valor exatamente na linha 1, coluna A (A1)
-                let nomePermitido = "";
-                if (rows.length > 0 && rows[0].c && rows[0].c[0]) {
-                    nomePermitido = String(rows[0].c[0].v || rows[0].c[0].f || "").trim();
-                }
-
-                if (nomePermitido !== "" && userInput.toLowerCase() === nomePermitido.toLowerCase()) {
-                    localStorage.setItem('solar_auth_user', nomePermitido);
-                    document.getElementById('logged-user-display').innerText = nomePermitido;
-                    document.getElementById('screen-login').classList.add('hidden');
-                    mostrarToast(`Bem-vindo, ${nomePermitido}!`);
-                } else {
-                    alert(`Nome incorreto! O usuário cadastrado na planilha é diferente.`);
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Falha de conexão ao validar nome na planilha. Verifique sua internet.");
-            } finally {
-                btnSubmit.innerHTML = `<span>Entrar no Sistema</span>`;
-                btnSubmit.disabled = false;
-            }
-        }
-
-        function efetuarLogout() {
-            localStorage.removeItem('solar_auth_user');
-            document.getElementById('login-user').value = '';
-            document.getElementById('screen-login').classList.remove('hidden');
-        }
-
-        // GERENCIAMENTO DE ABAS
-        function trocarAba(aba) {
-            ['manutencao', 'cadastro', 'mapa'].forEach(t => {
-                document.getElementById(`tab-${t}`).classList.add('hidden');
-                const btnNav = document.getElementById(`nav-${t}`);
-                btnNav.classList.remove('text-brand-primary');
-                btnNav.classList.add('text-gray-400');
-                btnNav.querySelector('div').classList.remove('bg-brand-primary/10');
-            });
-
-            document.getElementById(`tab-${aba}`).classList.remove('hidden');
-            const activeNav = document.getElementById(`nav-${aba}`);
-            activeNav.classList.add('text-brand-primary');
-            activeNav.classList.remove('text-gray-400');
-            activeNav.querySelector('div').classList.add('bg-brand-primary/10');
-
-            if (aba === 'mapa') {
-                setTimeout(renderizarMapa, 200);
-            }
-        }
-
-        // BANCO DE DADOS LOCAL E MANUTENÇÃO
-        function carregarDadosLocais() {
-            casasDatabase = JSON.parse(localStorage.getItem('solarinvest_casas')) || [
-                { id: 1, nome: "Casa 01 - Centro", endereco: "Rua 12, Goianésia", aluguel: "850.00", energia: "180.00", gps: "-15.318, -49.117" },
-                { id: 2, nome: "Casa 02 - Boa Vista", endereco: "Av Brasil, Goianésia", aluguel: "1100.00", energia: "220.00", gps: "-15.325, -49.122" }
-            ];
-            renderizarListaManutencao();
-        }
-
-        function salvarDadosLocais() {
-            localStorage.setItem('solarinvest_casas', JSON.stringify(casasDatabase));
-            renderizarListaManutencao();
-        }
-
-        function renderizarListaManutencao() {
-            const container = document.getElementById('lista-clientes-manutencao');
-            container.innerHTML = '';
-
-            if (casasDatabase.length === 0) {
-                container.innerHTML = `<p class="text-center text-xs text-gray-400 py-8">Nenhum imóvel cadastrado.</p>`;
-                return;
-            }
-
-            casasDatabase.forEach(item => {
-                const card = document.createElement('div');
-                card.className = "bg-brand-card border border-[#2B3674] p-4 rounded-2xl space-y-3 shadow-lg";
-                card.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h3 class="font-bold text-sm text-white">${item.nome}</h3>
-                            <p class="text-[11px] text-gray-400"><i class="fa-solid fa-location-dot text-brand-primary"></i> ${item.endereco}</p>
-                        </div>
-                        <button onclick="dispararAtualizacaoForms(${item.id})" class="bg-brand-primary/20 border border-brand-primary text-brand-primary text-[10px] font-bold px-2.5 py-1 rounded-lg hover:bg-brand-primary hover:text-white transition-all">
-                            <i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar
-                        </button>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2 bg-brand-input p-2.5 rounded-xl border border-[#2B3674]">
-                        <div>
-                            <span class="text-[9px] font-bold text-gray-400 uppercase block">Aluguel (R$)</span>
-                            <input type="number" step="0.01" value="${item.aluguel}" onchange="atualizarValorLocal(${item.id}, 'aluguel', this.value)" class="w-full bg-transparent font-bold text-sm text-brand-accent focus:outline-none">
-                        </div>
-                        <div>
-                            <span class="text-[9px] font-bold text-gray-400 uppercase block">Energia (R$)</span>
-                            <input type="number" step="0.01" value="${item.energia}" onchange="atualizarValorLocal(${item.id}, 'energia', this.value)" class="w-full bg-transparent font-bold text-sm text-yellow-400 focus:outline-none">
-                        </div>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        }
-
-        function atualizarValorLocal(id, campo, valor) {
-            const idx = casasDatabase.findIndex(c => c.id === id);
-            if (idx !== -1) {
-                casasDatabase[idx][campo] = valor;
-                localStorage.setItem('solarinvest_casas', JSON.stringify(casasDatabase));
-                mostrarToast("Valor alterado localmente!");
-            }
-        }
-
-        // ENVIO PARA O GOOGLE FORMS
-        function enviarGoogleForms(e) {
-            e.preventDefault();
-            const nome = document.getElementById('cad-nome').value;
-            const endereco = document.getElementById('cad-endereco').value;
-            const aluguel = document.getElementById('cad-aluguel').value;
-            const energia = document.getElementById('cad-energia').value;
-            const gps = document.getElementById('cad-gps').value || "-15.318, -49.117";
-
-            const novoItem = { id: Date.now(), nome, endereco, aluguel, energia, gps };
-            casasDatabase.push(novoItem);
-            salvarDadosLocais();
-
-            executarPostForms(nome, endereco, aluguel, energia, gps);
-            document.getElementById('form-cadastro').reset();
-            trocarAba('manutencao');
-            mostrarToast("Cadastrado e enviado ao Forms!");
-        }
-
-        function dispararAtualizacaoForms(id) {
-            const item = casasDatabase.find(c => c.id === id);
-            if (item) {
-                executarPostForms(item.nome, item.endereco, item.aluguel, item.energia, item.gps);
-                mostrarToast("Atualização enviada para a planilha!");
-            }
-        }
-
-        function executarPostForms(nome, endereco, aluguel, energia, gps) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = FORMS_ACTION_URL;
-            form.target = 'hidden_iframe_forms';
-
-            const campos = {
-                'entry.1558631001': nome,
-                'entry.1084887223': endereco,
-                'entry.1552252096': aluguel,
-                'entry.153607876': energia,
-                'entry.839392941': gps
+            const payload = {
+                login: document.getElementById('login-inquilino').value,
+                casa: document.getElementById('casa-nome').value,
+                aluguel: parseFloat(document.getElementById('val-aluguel').value) || 0,
+                energia: parseFloat(document.getElementById('val-energia').value) || 0,
+                diaVencimento: parseInt(document.getElementById('dia-vencimento').value) || 10
             };
 
-            for (let key in campos) {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = key;
-                input.value = campos[key];
-                form.appendChild(input);
-            }
+            try {
+                const res = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
 
-            document.body.appendChild(form);
-            form.submit();
-            form.remove();
-        }
+                const data = await res.json();
 
-        // GPS E MAPA
-        function obterGPSAtual() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    document.getElementById('cad-gps').value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-                    mostrarToast("GPS Capturado!");
-                }, () => alert("Erro ao acessar GPS."));
-            }
-        }
-
-        function renderizarMapa() {
-            if (!leafletMap) {
-                leafletMap = L.map('map').setView([-15.318, -49.117], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: 'OpenStreetMap'
-                }).addTo(leafletMap);
-                markersGroup = L.layerGroup().addTo(leafletMap);
-            }
-
-            markersGroup.clearLayers();
-
-            casasDatabase.forEach(casa => {
-                const parts = (casa.gps || "").split(',');
-                if (parts.length === 2) {
-                    const lat = parseFloat(parts[0].trim());
-                    const lng = parseFloat(parts[1].trim());
-
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        const customIcon = L.divIcon({
-                            className: 'custom-house-icon',
-                            html: '<i class="fa-solid fa-house-circle-check text-xs"></i>',
-                            iconSize: [30, 30]
-                        });
-
-                        const popupContent = `
-                            <div class="text-xs space-y-1">
-                                <strong class="text-sm font-bold block text-brand-primary">${casa.nome}</strong>
-                                <p class="text-gray-300">${casa.endereco}</p>
-                                <div class="pt-1 text-[11px] font-semibold text-brand-accent">
-                                    Aluguel: R$ ${casa.aluguel} | Energia: R$ ${casa.energia}
-                                </div>
-                                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="mt-2 inline-block w-full bg-brand-primary text-white text-center py-1.5 rounded-lg font-bold text-[10px]">
-                                    <i class="fa-solid fa-location-arrow"></i> Abrir no GPS
-                                </a>
-                            </div>
-                        `;
-
-                        L.marker([lat, lng], { icon: customIcon })
-                         .bindPopup(popupContent)
-                         .addTo(markersGroup);
-                    }
+                if (data.status === 'success') {
+                    msg.innerText = "✅ Planilha atualizada e notificação enviada!";
+                    msg.className = "text-center text-xs font-semibold mt-4 text-emerald-400 block";
+                } else {
+                    throw new Error(data.message || "Erro no servidor");
                 }
-            });
+            } catch (err) {
+                msg.innerText = "❌ Erro ao atualizar: " + err.message;
+                msg.className = "text-center text-xs font-semibold mt-4 text-red-400 block";
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Atualizar e Enviar';
+            }
         }
 
-        // AUXILIARES
-        function mostrarToast(msg) {
-            const t = document.getElementById('toast');
-            document.getElementById('toast-msg').innerText = msg;
-            t.classList.remove('hidden');
-            setTimeout(() => t.classList.add('hidden'), 3000);
-        }
-
-        function initServiceWorker() {
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Fail:', err));
+        function ativarNotificacoesDono() {
+            if (window.OneSignalDeferred) {
+                window.OneSignalDeferred.push(async function(OneSignal) {
+                    await OneSignal.login(DONO_LOGIN);
+                    await OneSignal.Notifications.requestPermission();
+                    alert("Notificações do proprietário ativadas!");
+                });
             }
         }
     </script>
