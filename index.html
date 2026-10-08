@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Gestão SolarInvest</title>
+    
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#0B1437">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SolarInvest">
+    <link rel="apple-touch-icon" href="./logo_tipo.jpg">
+
+    <!-- CONFIGURAÇÃO ONESIGNAL (Substitua SEU_ONESIGNAL_APP_ID_AQUI) -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "SEU_ONESIGNAL_APP_ID_AQUI",
+          allowLocalhostAsSecureOrigin: true,
+        });
+      });
+    </script>
+
+    <!-- Tailwind CSS, FontAwesome e Leaflet Maps -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { bg: '#0B1437', card: '#111C44', input: '#1A2753', primary: '#7551FF', accent: '#05CD99', danger: '#EE5D50' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sab: env(safe-area-inset-bottom);
+        }
+        body {
+            background-color: #0B1437;
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            padding-top: var(--sat);
+            padding-bottom: var(--sab);
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Ajuste para Ilha Dinâmica iPhone 14 Pro */
+        .header-safe {
+            padding-top: calc(var(--sat) + 8px);
+        }
+        .leaflet-popup-content-wrapper {
+            background: #111C44 !important;
+            color: #FFF !important;
+            border-radius: 16px;
+            border: 1px solid #2B3674;
+        }
+        .leaflet-popup-tip {
+            background: #111C44 !important;
+        }
+        .custom-house-icon {
+            background: #7551FF;
+            border: 2px solid #FFF;
+            border-radius: 50%;
+            color: #FFF;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(117, 81, 255, 0.5);
+        }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden">
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed top-12 left-1/2 transform -translate-x-1/2 z-50 hidden bg-brand-primary text-white px-5 py-3 rounded-full shadow-2xl font-semibold text-xs flex items-center gap-2 border border-white/20 transition-all">
+        <i class="fa-solid fa-circle-check text-brand-accent"></i> <span id="toast-msg">Operação realizada!</span>
+    </div>
+
+    <!-- TELA DE LOGIN -->
+    <div id="screen-login" class="fixed inset-0 z-40 bg-brand-bg flex flex-col justify-center items-center px-6">
+        <div class="w-full max-w-sm bg-brand-card p-8 rounded-3xl border border-[#2B3674] shadow-2xl text-center">
+            <img src="./logo_tipo.jpg" alt="Logo" class="w-20 h-20 mx-auto rounded-2xl mb-4 border-2 border-brand-primary/40 object-cover shadow-lg">
+            <h2 class="text-xl font-bold mb-1">Acesso Restrito</h2>
+            <p class="text-xs text-gray-400 mb-6">Gestão de Casas & Unidades</p>
+            
+            <form id="form-login" onsubmit="efetuarLogin(event)" class="space-y-4">
+                <input type="text" id="login-user" placeholder="Usuário" required class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-primary">
+                <input type="password" id="login-pass" placeholder="Senha" required class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-primary">
+                <button type="submit" class="w-full bg-brand-primary hover:bg-brand-primary/80 py-3 rounded-xl font-bold text-sm shadow-lg shadow-brand-primary/30 transition-all">Entrar no Sistema</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- HEADER PRINCIPAL -->
+    <header class="header-safe bg-brand-card border-b border-[#2B3674] px-5 pb-3 flex justify-between items-center flex-shrink-0 z-10">
+        <div class="flex items-center gap-3">
+            <img src="./logo_tipo.jpg" alt="Logo" class="w-9 h-9 rounded-xl border border-brand-primary/40 object-cover">
+            <div>
+                <h1 class="font-bold text-sm leading-none">Painel Imobiliário</h1>
+                <span class="text-[10px] text-brand-accent font-semibold">Sessão Ativa</span>
+            </div>
+        </div>
+        <button onclick="efetuarLogout()" class="bg-brand-input border border-[#2B3674] hover:bg-brand-danger/20 hover:border-brand-danger hover:text-brand-danger px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-right-from-bracket"></i> Sair
+        </button>
+    </header>
+
+    <!-- CONTEÚDO PRINCIPAL (ABAS) -->
+    <main class="flex-1 overflow-y-auto p-4 relative">
+        
+        <!-- ABA 1: MANUTENÇÃO (TELA INICIAL PADRÃO) -->
+        <section id="tab-manutencao" class="space-y-4">
+            <div class="bg-gradient-to-r from-brand-primary to-indigo-900 p-5 rounded-2xl shadow-xl">
+                <h2 class="font-extrabold text-base mb-1">Manutenção de Valores</h2>
+                <p class="text-xs text-white/80">Atualize taxas de aluguel e energia dos clientes em tempo real.</p>
+            </div>
+
+            <div id="lista-clientes-manutencao" class="space-y-3">
+                <!-- Injetado Dinamicamente -->
+            </div>
+        </section>
+
+        <!-- ABA 2: NOVO CADASTRO -->
+        <section id="tab-cadastro" class="hidden space-y-4">
+            <div class="bg-brand-card p-5 rounded-2xl border border-[#2B3674] shadow-xl">
+                <h2 class="font-bold text-base mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-house-chimney-medical text-brand-primary"></i> Cadastrar Imóvel / Cliente
+                </h2>
+
+                <form id="form-cadastro" onsubmit="enviarGoogleForms(event)" class="space-y-3">
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 block mb-1">NOME COMPLETO / IDENTIFICAÇÃO</label>
+                        <input type="text" id="cad-nome" required placeholder="Ex: João da Silva - Casa 01" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
+                    </div>
+
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 block mb-1">ENDEREÇO COMPLETO</label>
+                        <input type="text" id="cad-endereco" required placeholder="Rua, Número, Bairro" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-400 block mb-1">ALUGUEL (R$)</label>
+                            <input type="number" step="0.01" id="cad-aluguel" required placeholder="0.00" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-gray-400 block mb-1">ENERGIA (R$)</label>
+                            <input type="number" step="0.01" id="cad-energia" required placeholder="0.00" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-400 block mb-1">COORDENADAS GPS (LAT, LNG)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="cad-gps" placeholder="-15.3312, -49.1189" class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-brand-primary">
+                            <button type="button" onclick="obterGPSAtual()" class="bg-brand-input border border-[#2B3674] px-3 rounded-xl text-brand-primary text-xs font-bold hover:bg-brand-primary hover:text-white transition-all"><i class="fa-solid fa-location-crosshairs"></i></button>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-cad-submit" class="w-full bg-brand-accent hover:bg-emerald-600 text-brand-bg font-bold py-3 rounded-xl text-xs shadow-lg mt-2 transition-all flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i> Cadastrar e Enviar ao Forms
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ABA 3: MAPA MUNDI / NAVEGAÇÃO GPS -->
+        <section id="tab-mapa" class="hidden h-full flex flex-col">
+            <div class="mb-2 flex justify-between items-center">
+                <span class="text-xs font-bold text-gray-300"><i class="fa-solid fa-earth-americas text-brand-primary"></i> Localização de Ativos</span>
+                <span class="text-[10px] bg-brand-input px-2 py-1 rounded-lg border border-[#2B3674] text-gray-400">Clique no ícone para rotas</span>
+            </div>
+            <div id="map" class="w-full flex-1 rounded-2xl border border-[#2B3674] overflow-hidden shadow-2xl"></div>
+        </section>
+    </main>
+
+    <!-- NAVEGAÇÃO INFERIOR FLUIDA (BOTÕES COMPACTOS) -->
+    <nav class="bg-brand-card border-t border-[#2B3674] px-4 py-2 flex justify-around items-center flex-shrink-0 z-20">
+        <button onclick="trocarAba('manutencao')" id="nav-manutencao" class="flex flex-col items-center gap-1 text-brand-primary">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm bg-brand-primary/10"><i class="fa-solid fa-sliders"></i></div>
+            <span class="text-[10px] font-bold">Ajustes</span>
+        </button>
+
+        <button onclick="trocarAba('mapa')" id="nav-mapa" class="flex flex-col items-center gap-1 text-gray-400">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm"><i class="fa-solid fa-map-location-dot"></i></div>
+            <span class="text-[10px] font-bold">Mapa</span>
+        </button>
+
+        <button onclick="trocarAba('cadastro')" id="nav-cadastro" class="flex flex-col items-center gap-1 text-gray-400">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm"><i class="fa-solid fa-plus-circle"></i></div>
+            <span class="text-[10px] font-bold">Novo</span>
+        </button>
+    </nav>
+
+    <!-- IFRAME OCULTO PARA ENVIO DO FORMS SEMENTRANCAR -->
+    <iframe name="hidden_iframe_forms" id="hidden_iframe_forms" class="hidden"></iframe>
+
+    <script>
+        const FORMS_ACTION_URL = "https://docs.google.com/forms/d/e/1FAIpQLSc8W4t2tjWCfYsVzr7tp9C5EA17RAKWu1Abu8Q9q4n17Hoyfw/formResponse";
+        let casasDatabase = [];
+        let leafletMap = null;
+        let markersGroup = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            verificarAutenticacao();
+            carregarDadosLocais();
+            initServiceWorker();
+        });
+
+        // AUTENTICAÇÃO PERSISTENTE (LEMBRAR SEMPRE)
+        function verificarAutenticacao() {
+            if (localStorage.getItem('solar_auth_token') === 'authenticated_true') {
+                document.getElementById('screen-login').classList.add('hidden');
+            } else {
+                document.getElementById('screen-login').classList.remove('hidden');
+            }
+        }
+
+        function efetuarLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+
+            if (u && p) {
+                localStorage.setItem('solar_auth_token', 'authenticated_true');
+                document.getElementById('screen-login').classList.add('hidden');
+                mostrarToast('Login efetuado com sucesso!');
+            }
+        }
+
+        function efetuarLogout() {
+            localStorage.removeItem('solar_auth_token');
+            document.getElementById('screen-login').classList.remove('hidden');
+        }
+
+        // GERENCIAMENTO DE ABAS
+        function trocarAba(aba) {
+            ['manutencao', 'cadastro', 'mapa'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                const btnNav = document.getElementById(`nav-${t}`);
+                btnNav.classList.remove('text-brand-primary');
+                btnNav.classList.add('text-gray-400');
+                btnNav.querySelector('div').classList.remove('bg-brand-primary/10');
+            });
+
+            document.getElementById(`tab-${aba}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${aba}`);
+            activeNav.classList.add('text-brand-primary');
+            activeNav.classList.remove('text-gray-400');
+            activeNav.querySelector('div').classList.add('bg-brand-primary/10');
+
+            if (aba === 'mapa') {
+                setTimeout(renderizarMapa, 200);
+            }
+        }
+
+        // CARREGAR E RENDERIZAR BANCO DE DADOS LOCAL
+        function carregarDadosLocais() {
+            casasDatabase = JSON.parse(localStorage.getItem('solarinvest_casas')) || [
+                { id: 1, nome: "Casa 01 - Centro", endereco: "Rua 12, Goianésia", aluguel: "850.00", energia: "180.00", gps: "-15.318, -49.117" },
+                { id: 2, nome: "Casa 02 - Boa Vista", endereco: "Av Brasil, Goianésia", aluguel: "1100.00", energia: "220.00", gps: "-15.325, -49.122" }
+            ];
+            renderizarListaManutencao();
+        }
+
+        function salvarDadosLocais() {
+            localStorage.setItem('solarinvest_casas', JSON.stringify(casasDatabase));
+            renderizarListaManutencao();
+        }
+
+        function renderizarListaManutencao() {
+            const container = document.getElementById('lista-clientes-manutencao');
+            container.innerHTML = '';
+
+            if (casasDatabase.length === 0) {
+                container.innerHTML = `<p class="text-center text-xs text-gray-400 py-8">Nenhum imóvel cadastrado.</p>`;
+                return;
+            }
+
+            casasDatabase.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-brand-card border border-[#2B3674] p-4 rounded-2xl space-y-3 shadow-lg";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h3 class="font-bold text-sm text-white">${item.nome}</h3>
+                            <p class="text-[11px] text-gray-400"><i class="fa-solid fa-location-dot text-brand-primary"></i> ${item.endereco}</p>
+                        </div>
+                        <button onclick="dispararAtualizacaoForms(${item.id})" class="bg-brand-primary/20 border border-brand-primary text-brand-primary text-[10px] font-bold px-2.5 py-1 rounded-lg hover:bg-brand-primary hover:text-white transition-all">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> Sincronizar
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 bg-brand-input p-2.5 rounded-xl border border-[#2B3674]">
+                        <div>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase block">Aluguel (R$)</span>
+                            <input type="number" step="0.01" value="${item.aluguel}" onchange="atualizarValorLocal(${item.id}, 'aluguel', this.value)" class="w-full bg-transparent font-bold text-sm text-brand-accent focus:outline-none">
+                        </div>
+                        <div>
+                            <span class="text-[9px] font-bold text-gray-400 uppercase block">Energia (R$)</span>
+                            <input type="number" step="0.01" value="${item.energia}" onchange="atualizarValorLocal(${item.id}, 'energia', this.value)" class="w-full bg-transparent font-bold text-sm text-yellow-400 focus:outline-none">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function atualizarValorLocal(id, campo, valor) {
+            const idx = casasDatabase.findIndex(c => c.id === id);
+            if (idx !== -1) {
+                casasDatabase[idx][campo] = valor;
+                localStorage.setItem('solarinvest_casas', JSON.stringify(casasDatabase));
+                mostrarToast("Valor alterado localmente!");
+            }
+        }
+
+        // ENVIO DE DADOS PARA GOOGLE FORMS
+        function enviarGoogleForms(e) {
+            e.preventDefault();
+            const nome = document.getElementById('cad-nome').value;
+            const endereco = document.getElementById('cad-endereco').value;
+            const aluguel = document.getElementById('cad-aluguel').value;
+            const energia = document.getElementById('cad-energia').value;
+            const gps = document.getElementById('cad-gps').value || "-15.318, -49.117";
+
+            const novoItem = { id: Date.now(), nome, endereco, aluguel, energia, gps };
+            casasDatabase.push(novoItem);
+            salvarDadosLocais();
+
+            executarPostForms(nome, endereco, aluguel, energia, gps);
+            document.getElementById('form-cadastro').reset();
+            trocarAba('manutencao');
+            mostrarToast("Cadastrado e enviado ao Forms!");
+        }
+
+        function dispararAtualizacaoForms(id) {
+            const item = casasDatabase.find(c => c.id === id);
+            if (item) {
+                executarPostForms(item.nome, item.endereco, item.aluguel, item.energia, item.gps);
+                mostrarToast("Atualização enviada para a planilha!");
+            }
+        }
+
+        function executarPostForms(nome, endereco, aluguel, energia, gps) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = FORMS_ACTION_URL;
+            form.target = 'hidden_iframe_forms';
+
+            const campos = {
+                'entry.1558631001': nome,
+                'entry.1084887223': endereco,
+                'entry.1552252096': aluguel,
+                'entry.153607876': energia,
+                'entry.839392941': gps
+            };
+
+            for (let key in campos) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = campos[key];
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
+        }
+
+        // OBTENÇÃO DE GEOLOCALIZAÇÃO
+        function obterGPSAtual() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    document.getElementById('cad-gps').value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+                    mostrarToast("GPS Capturado!");
+                }, () => alert("Erro ao acessar GPS."));
+            }
+        }
+
+        // MAPA INTERATIVO & ROTEAMENTO GPS
+        function renderizarMapa() {
+            if (!leafletMap) {
+                leafletMap = L.map('map').setView([-15.318, -49.117], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: 'OpenStreetMap'
+                }).addTo(leafletMap);
+                markersGroup = L.layerGroup().addTo(leafletMap);
+            }
+
+            markersGroup.clearLayers();
+
+            casasDatabase.forEach(casa => {
+                const parts = (casa.gps || "").split(',');
+                if (parts.length === 2) {
+                    const lat = parseFloat(parts[0].trim());
+                    const lng = parseFloat(parts[1].trim());
+
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        const customIcon = L.divIcon({
+                            className: 'custom-house-icon',
+                            html: '<i class="fa-solid fa-house-circle-check text-xs"></i>',
+                            iconSize: [30, 30]
+                        });
+
+                        const popupContent = `
+                            <div class="text-xs space-y-1">
+                                <strong class="text-sm font-bold block text-brand-primary">${casa.nome}</strong>
+                                <p class="text-gray-300">${casa.endereco}</p>
+                                <div class="pt-1 text-[11px] font-semibold text-brand-accent">
+                                    Aluguel: R$ ${casa.aluguel} | Energia: R$ ${casa.energia}
+                                </div>
+                                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="mt-2 inline-block w-full bg-brand-primary text-white text-center py-1.5 rounded-lg font-bold text-[10px]">
+                                    <i class="fa-solid fa-location-arrow"></i> Abrir no GPS
+                                </a>
+                            </div>
+                        `;
+
+                        L.marker([lat, lng], { icon: customIcon })
+                         .bindPopup(popupContent)
+                         .addTo(markersGroup);
+                    }
+                }
+            });
+        }
+
+        // UTILITÁRIOS
+        function mostrarToast(msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3000);
+        }
+
+        function initServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Fail:', err));
+            }
+        }
+    </script>
+</body>
+</html>
