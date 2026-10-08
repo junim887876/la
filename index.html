@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Painel do Proprietário</title>
+    <title>Painel do </title>
 
     <!-- ========================================================= -->
     <!-- CONFIGURAÇÕES PRINCIPAIS                                  -->
@@ -14,7 +14,7 @@
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNKkud_RLSoH6nL4hzqp78DFu_6QNc3aQocxOoUzkjF5EEHharwzg8ioJGczNCklEDA/exec";
         const ONESIGNAL_DONO_APP_ID = "fb8aab6d-4c3d-4f20-8e76-7980d0e94a3f";
         const LOGO_PATH = "./logo_nova.jpg";
-        const DONO_LOGIN = "dono"; // ID de notificação do proprietário
+        const DONO_LOGIN = "dono";
     </script>
     <!-- ========================================================= -->
 
@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- OneSignal Web Push SDK v16 (Inscrição Automática) -->
+    <!-- OneSignal Web Push SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -40,29 +40,16 @@
           appId: ONESIGNAL_DONO_APP_ID,
           serviceWorkerPath: "sw.js",
           serviceWorkerParam: { scope: "/" },
-          promptOptions: {
-            slidedown: {
-              prompts: [
-                {
-                  type: "push",
-                  autoPrompt: true,
-                  text: {
-                    actionMessage: "Deseja receber notificações de vencimentos e pagamentos?",
-                    acceptButton: "Permitir",
-                    cancelButton: "Agora não"
-                  }
-                }
-              ]
-            }
-          }
         });
 
-        // Associa a conta do usuário diretamente ao alias 'dono'
+        // Vincula a identificação única do proprietário
         await OneSignal.login(DONO_LOGIN);
 
-        // Força a exibição do pedido de permissão do navegador
-        if (OneSignal.Notifications && OneSignal.Notifications.permission === false) {
+        // Dispara a solicitação nativa do navegador imediatamente
+        try {
             await OneSignal.Notifications.requestPermission();
+        } catch (err) {
+            console.log("Aguardando interação do usuário para permissão.");
         }
       });
     </script>
