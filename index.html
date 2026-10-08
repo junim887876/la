@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Painel</title>
+    <title>Painelkkk</title>
 
     <!-- ========================================================= -->
-    <!-- CONFIGURAÇÕES PRINCIPAIS (SUBSTITUA AQUI OS SEUS DADOS)   -->
+    <!-- CONFIGURAÇÕES PRINCIPAIS                                  -->
     <!-- ========================================================= -->
     <script>
+        const SHEET_ID = '1b-hPE6fom1F94MDmek3LeWL7g4O4rTlb_ruZjbfer7s';
+        const SHEET_NAME = 'casas';
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBNKkud_RLSoH6nL4hzqp78DFu_6QNc3aQocxOoUzkjF5EEHharwzg8ioJGczNCklEDA/exec";
         const ONESIGNAL_DONO_APP_ID = "fb8aab6d-4c3d-4f20-8e76-7980d0e94a3f";
         const LOGO_PATH = "./logo_nova.jpg";
@@ -73,14 +75,14 @@
 
     <div class="w-full max-w-md glass-card rounded-2xl p-6 shadow-2xl border border-white/10 relative">
         
-        <!-- CABEÇALHO COM A LOGOTIPO DA EMPRESA -->
+        <!-- CABEÇALHO COM LOGO DA EMPRESA -->
         <div class="flex items-center gap-3.5 mb-6 border-b border-white/10 pb-4">
             <div class="p-0.5 rounded-xl bg-gradient-to-b from-emerald-500/30 to-transparent shadow-[0_0_15px_rgba(63,185,80,0.15)] shrink-0">
                 <img id="app-logo" src="./logo_nova.jpg" alt="Logo" class="w-12 h-12 rounded-xl object-cover border border-white/10">
             </div>
             <div>
                 <h1 class="text-base font-extrabold text-white leading-tight">Painel do Proprietário</h1>
-                <p class="text-xs text-gray-400 font-medium">Lançamento de Contas & Faturas</p>
+                <p class="text-xs text-gray-400 font-medium">Lançamento de Faturas & Valores</p>
             </div>
             <div class="ml-auto">
                 <button type="button" onclick="ativarNotificacoesDono()" class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center active:scale-95 transition-all">
@@ -89,36 +91,53 @@
             </div>
         </div>
 
-        <!-- FORMULÁRIO DE ATUALIZAÇÃO DA PLANILHA -->
+        <!-- FORMULÁRIO DE SELEÇÃO E EDIÇÃO -->
         <form id="form-gestao" onsubmit="salvarDados(event)" class="space-y-4">
+            
+            <!-- SELETOR DE CASAS DA PLANILHA -->
             <div>
-                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Login do Inquilino</label>
-                <input type="text" id="login-inquilino" placeholder="Ex: paulo" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5 flex justify-between items-center">
+                    <span>Selecionar Imóvel</span>
+                    <button type="button" onclick="carregarCasasPlanilha()" class="text-emerald-400 hover:underline text-[10px] lowercase font-normal flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-right"></i> atualizar lista
+                    </button>
+                </label>
+                <select id="select-casa" onchange="selecionarCasa()" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                    <option value="">Carregando imóveis...</option>
+                </select>
             </div>
 
-            <div>
-                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Identificação do Imóvel</label>
-                <input type="text" id="casa-nome" placeholder="Ex: Casa 01" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+            <!-- DETALHES DO INQUILINO SELECIONADO -->
+            <div id="info-inquilino" class="hidden bg-white/5 border border-white/10 rounded-xl p-3 text-xs space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Inquilino (Login):</span>
+                    <span id="disp-login" class="font-bold text-emerald-400">---</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">Dia de Vencimento:</span>
+                    <span id="disp-vencimento" class="font-bold text-white">Dia 10</span>
+                </div>
             </div>
 
+            <!-- VALORES DE ALUGUEL E ENERGIA PARA EDITAR -->
             <div class="grid grid-cols-2 gap-3">
                 <div>
                     <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Aluguel (R$)</label>
-                    <input type="number" step="0.01" id="val-aluguel" placeholder="0.00" class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                    <input type="number" step="0.01" id="val-aluguel" placeholder="0.00" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
                 </div>
                 <div>
                     <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Energia (R$)</label>
-                    <input type="number" step="0.01" id="val-energia" placeholder="0.00" class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                    <input type="number" step="0.01" id="val-energia" placeholder="0.00" required class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
                 </div>
             </div>
 
-            <div>
-                <label class="block text-[11px] font-bold text-gray-300 uppercase mb-1.5">Dia de Vencimento Mensal</label>
-                <input type="number" id="dia-vencimento" placeholder="10" value="10" min="1" max="31" class="w-full bg-[#161b22] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
-            </div>
+            <!-- CAMPOS OCULTOS REPASSADOS AUTOMATICAMENTE -->
+            <input type="hidden" id="login-inquilino">
+            <input type="hidden" id="casa-nome">
+            <input type="hidden" id="dia-vencimento" value="10">
 
-            <button type="submit" id="btn-salvar" class="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold py-3.5 rounded-xl active:scale-95 transition-all text-sm flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 mt-2">
-                <i class="fa-solid fa-paper-plane"></i> Atualizar e Enviar
+            <button type="submit" id="btn-salvar" disabled class="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-extrabold py-3.5 rounded-xl active:scale-95 transition-all text-sm flex justify-center items-center gap-2 shadow-lg shadow-emerald-500/20 mt-2">
+                <i class="fa-solid fa-paper-plane"></i> Salvar e Enviar Notificação
             </button>
         </form>
 
@@ -126,16 +145,93 @@
     </div>
 
     <script>
-        // Atualiza dinamicamente o SRC da imagem se alterado no topo
         document.getElementById('app-logo').src = LOGO_PATH;
+        let listaCasas = [];
 
+        function parseToNumber(val) {
+            if (val === null || val === undefined || val === '') return 0;
+            let numStr = val.toString().replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+            let num = parseFloat(numStr);
+            return isNaN(num) ? 0 : num;
+        }
+
+        // Busca todas as casas da planilha via Google Visualization API
+        async function carregarCasasPlanilha() {
+            const select = document.getElementById('select-casa');
+            select.innerHTML = '<option value="">Carregando imóveis...</option>';
+
+            try {
+                const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Erro ao acessar a planilha");
+
+                const text = await response.text();
+                const json = JSON.parse(text.substring(47, text.length - 2));
+                const rows = json.table.rows;
+
+                listaCasas = [];
+                select.innerHTML = '<option value="">Selecione um imóvel...</option>';
+
+                rows.forEach((row, index) => {
+                    const c = row.c;
+                    if (!c) return;
+
+                    const casa = c[0] ? (c[0].v || '') : '';
+                    const aluguel = c[1] ? parseToNumber(c[1].v) : 0;
+                    const energia = c[2] ? parseToNumber(c[2].v) : 0;
+                    const login = c[3] ? (c[3].v || '').toString().trim().toLowerCase() : '';
+                    const diaVencimento = c[4] ? parseToNumber(c[4].v) : 10;
+
+                    if (login && casa) {
+                        const item = { index, casa, aluguel, energia, login, diaVencimento };
+                        listaCasas.push(item);
+
+                        const opt = document.createElement('option');
+                        opt.value = login;
+                        opt.textContent = `${casa} (${login})`;
+                        select.appendChild(opt);
+                    }
+                });
+
+            } catch (err) {
+                console.error(err);
+                select.innerHTML = '<option value="">Erro ao carregar imóveis</option>';
+            }
+        }
+
+        // Preenche o formulário ao escolher uma casa da lista
+        function selecionarCasa() {
+            const selectedLogin = document.getElementById('select-casa').value;
+            const item = listaCasas.find(c => c.login === selectedLogin);
+            const btn = document.getElementById('btn-salvar');
+            const info = document.getElementById('info-inquilino');
+
+            if (item) {
+                document.getElementById('login-inquilino').value = item.login;
+                document.getElementById('casa-nome').value = item.casa;
+                document.getElementById('val-aluguel').value = item.aluguel;
+                document.getElementById('val-energia').value = item.energia;
+                document.getElementById('dia-vencimento').value = item.diaVencimento;
+
+                document.getElementById('disp-login').innerText = item.login;
+                document.getElementById('disp-vencimento').innerText = `Todo dia ${item.diaVencimento}`;
+
+                info.classList.remove('hidden');
+                btn.disabled = false;
+            } else {
+                info.classList.add('hidden');
+                btn.disabled = true;
+            }
+        }
+
+        // Salva as alterações na planilha e notifica o inquilino
         async function salvarDados(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-salvar');
             const msg = document.getElementById('msg-status');
 
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> Enviando...';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> Atualizando...';
             msg.classList.add('hidden');
 
             const payload = {
@@ -156,8 +252,9 @@
                 const data = await res.json();
 
                 if (data.status === 'success') {
-                    msg.innerText = "✅ Planilha atualizada e notificação enviada!";
+                    msg.innerText = "✅ Atualizado na planilha e notificação disparada!";
                     msg.className = "text-center text-xs font-semibold mt-4 text-emerald-400 block";
+                    carregarCasasPlanilha(); // Recarrega os dados atualizados
                 } else {
                     throw new Error(data.message || "Erro no servidor");
                 }
@@ -166,7 +263,7 @@
                 msg.className = "text-center text-xs font-semibold mt-4 text-red-400 block";
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Atualizar e Enviar';
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Salvar e Enviar Notificação';
             }
         }
 
@@ -179,6 +276,9 @@
                 });
             }
         }
+
+        // Carrega a lista de imóveis automaticamente ao abrir a página
+        window.onload = carregarCasasPlanilha;
     </script>
 </body>
 </html>
