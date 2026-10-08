@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Painelkkk</title>
+    <title>Painel do Proprietário</title>
 
     <!-- ========================================================= -->
     <!-- CONFIGURAÇÕES PRINCIPAIS                                  -->
@@ -31,7 +31,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- OneSignal Web Push SDK -->
+    <!-- OneSignal Web Push SDK v16 (Inscrição Automática) -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -40,9 +40,30 @@
           appId: ONESIGNAL_DONO_APP_ID,
           serviceWorkerPath: "sw.js",
           serviceWorkerParam: { scope: "/" },
+          promptOptions: {
+            slidedown: {
+              prompts: [
+                {
+                  type: "push",
+                  autoPrompt: true,
+                  text: {
+                    actionMessage: "Deseja receber notificações de vencimentos e pagamentos?",
+                    acceptButton: "Permitir",
+                    cancelButton: "Agora não"
+                  }
+                }
+              ]
+            }
+          }
         });
+
+        // Associa a conta do usuário diretamente ao alias 'dono'
         await OneSignal.login(DONO_LOGIN);
-        await OneSignal.Notifications.requestPermission();
+
+        // Força a exibição do pedido de permissão do navegador
+        if (OneSignal.Notifications && OneSignal.Notifications.permission === false) {
+            await OneSignal.Notifications.requestPermission();
+        }
       });
     </script>
 
@@ -83,11 +104,6 @@
             <div>
                 <h1 class="text-base font-extrabold text-white leading-tight">Painel do Proprietário</h1>
                 <p class="text-xs text-gray-400 font-medium">Lançamento de Faturas & Valores</p>
-            </div>
-            <div class="ml-auto">
-                <button type="button" onclick="ativarNotificacoesDono()" class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center active:scale-95 transition-all">
-                    <i class="fa-solid fa-bell text-xs"></i>
-                </button>
             </div>
         </div>
 
@@ -155,7 +171,6 @@
             return isNaN(num) ? 0 : num;
         }
 
-        // Busca todas as casas da planilha via Google Visualization API
         async function carregarCasasPlanilha() {
             const select = document.getElementById('select-casa');
             select.innerHTML = '<option value="">Carregando imóveis...</option>';
@@ -199,7 +214,6 @@
             }
         }
 
-        // Preenche o formulário ao escolher uma casa da lista
         function selecionarCasa() {
             const selectedLogin = document.getElementById('select-casa').value;
             const item = listaCasas.find(c => c.login === selectedLogin);
@@ -224,7 +238,6 @@
             }
         }
 
-        // Salva as alterações na planilha e notifica o inquilino
         async function salvarDados(e) {
             e.preventDefault();
             const btn = document.getElementById('btn-salvar');
@@ -254,7 +267,7 @@
                 if (data.status === 'success') {
                     msg.innerText = "✅ Atualizado na planilha e notificação disparada!";
                     msg.className = "text-center text-xs font-semibold mt-4 text-emerald-400 block";
-                    carregarCasasPlanilha(); // Recarrega os dados atualizados
+                    carregarCasasPlanilha();
                 } else {
                     throw new Error(data.message || "Erro no servidor");
                 }
@@ -267,17 +280,6 @@
             }
         }
 
-        function ativarNotificacoesDono() {
-            if (window.OneSignalDeferred) {
-                window.OneSignalDeferred.push(async function(OneSignal) {
-                    await OneSignal.login(DONO_LOGIN);
-                    await OneSignal.Notifications.requestPermission();
-                    alert("Notificações do proprietário ativadas!");
-                });
-            }
-        }
-
-        // Carrega a lista de imóveis automaticamente ao abrir a página
         window.onload = carregarCasasPlanilha;
     </script>
 </body>
