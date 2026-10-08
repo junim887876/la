@@ -1,0 +1,21 @@
+{
+  "name": "SolarInvest Gestão",
+  "short_name": "SolarInvest",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0B1437",
+  "theme_color": "#0B1437",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./logo_tipo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "./logo_tipo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
