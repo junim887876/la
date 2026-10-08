@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="SolarInvest">
     <link rel="apple-touch-icon" href="./logo_tipo.jpg">
 
-    <!-- CONFIGURAÇÃO ONESIGNAL (Substitua SEU_ONESIGNAL_APP_ID_AQUI) -->
+    <!-- CONFIGURAÇÃO ONESIGNAL (Substitua pelo seu App ID) -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -55,7 +55,6 @@
             padding-bottom: var(--sab);
             -webkit-tap-highlight-color: transparent;
         }
-        /* Ajuste para Ilha Dinâmica iPhone 14 Pro */
         .header-safe {
             padding-top: calc(var(--sat) + 8px);
         }
@@ -88,17 +87,18 @@
         <i class="fa-solid fa-circle-check text-brand-accent"></i> <span id="toast-msg">Operação realizada!</span>
     </div>
 
-    <!-- TELA DE LOGIN -->
+    <!-- TELA DE LOGIN COM VALIDAÇÃO NA PLANILHA -->
     <div id="screen-login" class="fixed inset-0 z-40 bg-brand-bg flex flex-col justify-center items-center px-6">
         <div class="w-full max-w-sm bg-brand-card p-8 rounded-3xl border border-[#2B3674] shadow-2xl text-center">
             <img src="./logo_tipo.jpg" alt="Logo" class="w-20 h-20 mx-auto rounded-2xl mb-4 border-2 border-brand-primary/40 object-cover shadow-lg">
             <h2 class="text-xl font-bold mb-1">Acesso Restrito</h2>
-            <p class="text-xs text-gray-400 mb-6">Gestão de Casas & Unidades</p>
+            <p class="text-xs text-gray-400 mb-6">Informe o nome cadastrado na planilha</p>
             
             <form id="form-login" onsubmit="efetuarLogin(event)" class="space-y-4">
-                <input type="text" id="login-user" placeholder="Usuário" required class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-primary">
-                <input type="password" id="login-pass" placeholder="Senha" required class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-primary">
-                <button type="submit" class="w-full bg-brand-primary hover:bg-brand-primary/80 py-3 rounded-xl font-bold text-sm shadow-lg shadow-brand-primary/30 transition-all">Entrar no Sistema</button>
+                <input type="text" id="login-user" placeholder="Digite seu Nome" required class="w-full bg-brand-input border border-[#2B3674] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-primary">
+                <button type="submit" id="btn-login-submit" class="w-full bg-brand-primary hover:bg-brand-primary/80 py-3 rounded-xl font-bold text-sm shadow-lg shadow-brand-primary/30 transition-all flex items-center justify-center gap-2">
+                    <span>Entrar no Sistema</span>
+                </button>
             </form>
         </div>
     </div>
@@ -109,7 +109,7 @@
             <img src="./logo_tipo.jpg" alt="Logo" class="w-9 h-9 rounded-xl border border-brand-primary/40 object-cover">
             <div>
                 <h1 class="font-bold text-sm leading-none">Painel Imobiliário</h1>
-                <span class="text-[10px] text-brand-accent font-semibold">Sessão Ativa</span>
+                <span class="text-[10px] text-brand-accent font-semibold" id="logged-user-display">Sessão Ativa</span>
             </div>
         </div>
         <button onclick="efetuarLogout()" class="bg-brand-input border border-[#2B3674] hover:bg-brand-danger/20 hover:border-brand-danger hover:text-brand-danger px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5">
@@ -204,11 +204,13 @@
         </button>
     </nav>
 
-    <!-- IFRAME OCULTO PARA ENVIO DO FORMS SEMENTRANCAR -->
+    <!-- IFRAME OCULTO PARA ENVIO DO FORMS SEM REFRESH -->
     <iframe name="hidden_iframe_forms" id="hidden_iframe_forms" class="hidden"></iframe>
 
     <script>
+        const LOGIN_SHEET_URL = "https://docs.google.com/spreadsheets/d/1b-hPE6fom1F94MDmek3LeWL7g4O4rTlb_ruZjbfer7s/gviz/tq?tqx=out:json&sheet=login";
         const FORMS_ACTION_URL = "https://docs.google.com/forms/d/e/1FAIpQLSc8W4t2tjWCfYsVzr7tp9C5EA17RAKWu1Abu8Q9q4n17Hoyfw/formResponse";
+        
         let casasDatabase = [];
         let leafletMap = null;
         let markersGroup = null;
@@ -219,29 +221,63 @@
             initServiceWorker();
         });
 
-        // AUTENTICAÇÃO PERSISTENTE (LEMBRAR SEMPRE)
+        // AUTENTICAÇÃO PERSISTENTE VALIDADANDO NA CELULA A1 DA ABA LOGIN
         function verificarAutenticacao() {
-            if (localStorage.getItem('solar_auth_token') === 'authenticated_true') {
+            const userSalvo = localStorage.getItem('solar_auth_user');
+            if (userSalvo) {
                 document.getElementById('screen-login').classList.add('hidden');
+                document.getElementById('logged-user-display').innerText = userSalvo;
             } else {
                 document.getElementById('screen-login').classList.remove('hidden');
             }
         }
 
-        function efetuarLogin(e) {
+        async function efetuarLogin(e) {
             e.preventDefault();
-            const u = document.getElementById('login-user').value;
-            const p = document.getElementById('login-pass').value;
+            const userInput = document.getElementById('login-user').value.trim();
+            const btnSubmit = document.getElementById('btn-login-submit');
+            
+            btnSubmit.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Validando...`;
+            btnSubmit.disabled = true;
 
-            if (u && p) {
-                localStorage.setItem('solar_auth_token', 'authenticated_true');
-                document.getElementById('screen-login').classList.add('hidden');
-                mostrarToast('Login efetuado com sucesso!');
+            try {
+                // Busca os dados da aba "login" na planilha
+                const res = await fetch(LOGIN_SHEET_URL);
+                const text = await res.text();
+                
+                // Trata a resposta JSON da API do Google Sheets (gviz)
+                const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);/);
+                if (!jsonMatch) throw new Error("Erro ao ler dados da planilha.");
+
+                const jsonData = JSON.parse(jsonMatch[1]);
+                const rows = jsonData.table.rows;
+
+                // Lê o valor exatamente na linha 1, coluna A (A1)
+                let nomePermitido = "";
+                if (rows.length > 0 && rows[0].c && rows[0].c[0]) {
+                    nomePermitido = String(rows[0].c[0].v || rows[0].c[0].f || "").trim();
+                }
+
+                if (nomePermitido !== "" && userInput.toLowerCase() === nomePermitido.toLowerCase()) {
+                    localStorage.setItem('solar_auth_user', nomePermitido);
+                    document.getElementById('logged-user-display').innerText = nomePermitido;
+                    document.getElementById('screen-login').classList.add('hidden');
+                    mostrarToast(`Bem-vindo, ${nomePermitido}!`);
+                } else {
+                    alert(`Nome incorreto! O usuário cadastrado na planilha é diferente.`);
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Falha de conexão ao validar nome na planilha. Verifique sua internet.");
+            } finally {
+                btnSubmit.innerHTML = `<span>Entrar no Sistema</span>`;
+                btnSubmit.disabled = false;
             }
         }
 
         function efetuarLogout() {
-            localStorage.removeItem('solar_auth_token');
+            localStorage.removeItem('solar_auth_user');
+            document.getElementById('login-user').value = '';
             document.getElementById('screen-login').classList.remove('hidden');
         }
 
@@ -266,7 +302,7 @@
             }
         }
 
-        // CARREGAR E RENDERIZAR BANCO DE DADOS LOCAL
+        // BANCO DE DADOS LOCAL E MANUTENÇÃO
         function carregarDadosLocais() {
             casasDatabase = JSON.parse(localStorage.getItem('solarinvest_casas')) || [
                 { id: 1, nome: "Casa 01 - Centro", endereco: "Rua 12, Goianésia", aluguel: "850.00", energia: "180.00", gps: "-15.318, -49.117" },
@@ -327,7 +363,7 @@
             }
         }
 
-        // ENVIO DE DADOS PARA GOOGLE FORMS
+        // ENVIO PARA O GOOGLE FORMS
         function enviarGoogleForms(e) {
             e.preventDefault();
             const nome = document.getElementById('cad-nome').value;
@@ -381,7 +417,7 @@
             form.remove();
         }
 
-        // OBTENÇÃO DE GEOLOCALIZAÇÃO
+        // GPS E MAPA
         function obterGPSAtual() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(pos => {
@@ -391,7 +427,6 @@
             }
         }
 
-        // MAPA INTERATIVO & ROTEAMENTO GPS
         function renderizarMapa() {
             if (!leafletMap) {
                 leafletMap = L.map('map').setView([-15.318, -49.117], 13);
@@ -438,7 +473,7 @@
             });
         }
 
-        // UTILITÁRIOS
+        // AUXILIARES
         function mostrarToast(msg) {
             const t = document.getElementById('toast');
             document.getElementById('toast-msg').innerText = msg;
